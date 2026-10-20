@@ -103,7 +103,8 @@ class MemoryStore:
         if not isinstance(limit, int) or isinstance(limit, bool):
             raise ValueError("Limit must be an integer.")
         limit = max(1, min(limit, MAX_RESULTS))
-        pattern = f"%{query.replace('%', r'\%').replace('_', r'\_')}%"
+        escaped_query = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped_query}%"
         with self._connect() as connection:
             rows = connection.execute(
                 "SELECT id, created_at, category, content FROM memories "
