@@ -7,14 +7,15 @@ import sys
 from typing import Any
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
+import httpx
+from openai import APIError, AsyncOpenAI
 
 from a2a_client import A2AClient
 from audit_log import AuditLogError, write_audit_event
 from authorization import confirmation_granted, confirmation_phrase
 from mcp_client import MCPToolClient
-from owner_auth import verify_owner_password
 from memory_store import MemoryStore
+from owner_auth import verify_owner_password
 from safety import screen_remote_text
 from tool_policy import parse_tool_allowlist, tool_policy
 
@@ -234,7 +235,7 @@ async def main() -> None:
             try:
                 print(await adam.list_mcp_tools())
                 record_result("mcp_tool_discovery", True, "discovery_completed")
-            except Exception:
+            except (OSError, ValueError, RuntimeError, TimeoutError):
                 record_result("mcp_tool_discovery", False, "discovery_error")
                 print("MCP connection failed. Check the local server command and configuration.")
         elif line.lower().startswith("ask:"):
@@ -252,7 +253,7 @@ async def main() -> None:
             try:
                 print("Adam:", await adam.ask_model(prompt))
                 record_result("external_llm_request", True, "request_completed")
-            except Exception:
+            except (APIError, OSError, ValueError, RuntimeError, TimeoutError):
                 record_result("external_llm_request", False, "request_error")
                 print("Model request failed. Check the API endpoint, credentials, and network.")
         elif line.lower().startswith("a2a:"):
@@ -270,7 +271,7 @@ async def main() -> None:
             try:
                 print("Remote agent:", await adam.ask_remote_a2a(task))
                 record_result("external_a2a_request", True, "request_completed")
-            except Exception:
+            except (httpx.HTTPError, OSError, ValueError, RuntimeError, TimeoutError):
                 record_result("external_a2a_request", False, "request_error")
                 print("A2A request failed. Check the HTTPS Agent Card URL and remote agent configuration.")
         else:
