@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from a2a_client import A2AClient
+from authorization import confirmation_granted, confirmation_phrase
 from mcp_client import MCPToolClient
 from owner_auth import verify_owner_password
 from safety import screen_remote_text
@@ -77,6 +78,22 @@ class AdamAgent:
         return screen_remote_text(await self.a2a.send_task(task))
 
 
+def confirm_sensitive_action(action: str, explanation: str) -> bool:
+    """Ask the owner to explicitly approve a sensitive operation."""
+    try:
+        phrase = confirmation_phrase(action)
+        print(explanation)
+        print("Do not send passwords, API keys, private keys, or other secrets.")
+        response = input(f"Type {phrase} to continue (anything else cancels): ")
+    except (EOFError, KeyboardInterrupt, ValueError):
+        print("Action cancelled.")
+        return False
+    if not confirmation_granted(action, response):
+        print("Action cancelled.")
+        return False
+    return True
+
+
 async def main() -> None:
     expected_password = os.getenv("ADAM_OWNER_PASSWORD", "")
     if not expected_password:
@@ -111,18 +128,36 @@ async def main() -> None:
         if line.lower() == "status":
             print(await adam.status())
         elif line.lower() == "mcp-tools":
+            if not confirm_sensitive_action(
+                "start_mcp_server",
+                "This starts the local MCP server command configured in .env. "
+                "Only approve if you trust that command.",
+            ):
+                continue
             try:
                 print(await adam.list_mcp_tools())
             except Exception:
                 print("MCP connection failed. Check the local server command and configuration.")
         elif line.lower().startswith("ask:"):
+            prompt = line[4:].strip()
+            if not confirm_sensitive_action(
+                "send_to_llm",
+                "This sends your question to the configured external LLM provider.",
+            ):
+                continue
             try:
-                print("Adam:", await adam.ask_model(line[4:].strip()))
+                print("Adam:", await adam.ask_model(prompt))
             except Exception:
                 print("Model request failed. Check the API endpoint, credentials, and network.")
         elif line.lower().startswith("a2a:"):
+            task = line[4:].strip()
+            if not confirm_sensitive_action(
+                "send_to_a2a",
+                "This sends your task to the configured external A2A agent.",
+            ):
+                continue
             try:
-                print("Remote agent:", await adam.ask_remote_a2a(line[4:].strip()))
+                print("Remote agent:", await adam.ask_remote_a2a(task))
             except Exception:
                 print("A2A request failed. Check the HTTPS Agent Card URL and remote agent configuration.")
         else:
