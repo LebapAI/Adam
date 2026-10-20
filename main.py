@@ -14,7 +14,10 @@ from audit_log import AuditLogError, write_audit_event
 from authorization import confirmation_granted, confirmation_phrase
 try:
     from mcp_client import MCPToolClient
+    _MCP_AVAILABLE = True
 except ImportError:
+    _MCP_AVAILABLE = False
+
     class MCPToolClient:
         """Fallback when the optional MCP dependencies are unavailable."""
 
