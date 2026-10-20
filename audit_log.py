@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _TOKEN = re.compile(r"^[a-z][a-z0-9_]{0,47}$")
@@ -49,7 +49,7 @@ def write_audit_event(action: str, outcome: str, reason: str) -> None:
 
     path = Path(os.getenv("ADAM_AUDIT_LOG", "adam_audit.jsonl")).expanduser()
     event = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "action": action,
         "outcome": outcome,
         "reason": reason,
