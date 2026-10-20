@@ -1,19 +1,29 @@
-"""Basic A2A discovery and JSON-RPC task adapter.
+"""Conservative A2A discovery and JSON-RPC task adapter.
 
-A2A protocol versions and server implementations may differ. Review the remote
-Agent Card and documentation before using this adapter with a real service.
+Remote agent metadata and responses are untrusted. This client never executes
+remote code or tools. Network checks are defense-in-depth; production deployments
+should additionally enforce outbound policy at the OS/container/network layer.
 """
+import asyncio
 import ipaddress
 import json
+import socket
 import uuid
 from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
 
+MAX_TASK_CHARS = 12_000
+MAX_RESPONSE_BYTES = 1_000_000
+CONNECT_TIMEOUT = 5.0
+READ_TIMEOUT = 15.0
 
-def _https_origin(url: str) -> tuple[str, int]:
-    """Return a normalized HTTPS origin, rejecting unsafe or malformed URLs."""
+
+def _parse_https_url(url: str):
+    """Parse a public HTTPS URL and reject ambiguous or unsafe URL forms."""
+    if not isinstance(url, str) or not url or len(url) > 4096:
+        raise ValueError("A valid HTTPS URL is required.")
     try:
         parsed = urlsplit(url)
         port = parsed.port or 443
@@ -24,8 +34,9 @@ def _https_origin(url: str) -> tuple[str, int]:
         or not parsed.hostname
         or parsed.username is not None
         or parsed.password is not None
+        or parsed.fragment
     ):
-        raise ValueError("A valid HTTPS URL without embedded credentials is required.")
+        raise ValueError("A valid HTTPS URL without credentials or fragments is required.")
     hostname = parsed.hostname.lower().rstrip(".")
     if hostname == "localhost" or hostname.endswith(".localhost"):
         raise ValueError("Localhost endpoints are not allowed.")
@@ -35,6 +46,12 @@ def _https_origin(url: str) -> tuple[str, int]:
         address = None
     if address is not None and not address.is_global:
         raise ValueError("Non-public IP addresses are not allowed for A2A endpoints.")
+    return parsed, hostname, port
+
+
+def _https_origin(url: str) -> tuple[str, int]:
+    """Return a normalized HTTPS origin, rejecting unsafe or malformed URLs."""
+    _, hostname, port = _parse_https_url(url)
     return hostname, port
 
 
@@ -47,6 +64,69 @@ def _validate_endpoint(agent_card_url: str, endpoint: str) -> str:
             "Agent task endpoint must use the same HTTPS origin as its Agent Card."
         )
     return endpoint
+
+
+async def _check_public_dns(url: str) -> None:
+    """Reject hostnames that resolve to any non-public address.
+
+    DNS is checked before each request, but ordinary HTTP clients resolve again
+    when connecting. This check alone cannot eliminate DNS-rebinding races; use
+    egress firewall/container policy or a transport that pins validated DNS.
+    """
+    _, hostname, port = _parse_https_url(url)
+    try:
+        literal = ipaddress.ip_address(hostname)
+    except ValueError:
+        literal = None
+    if literal is not None:
+        if not literal.is_global:
+            raise ValueError("Non-public IP addresses are not allowed for A2A endpoints.")
+        return
+
+    loop = asyncio.get_running_loop()
+    try:
+        records = await asyncio.wait_for(
+            loop.getaddrinfo(
+                hostname, port, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
+            ),
+            timeout=CONNECT_TIMEOUT,
+        )
+    except (OSError, asyncio.TimeoutError) as exc:
+        raise ValueError("A2A hostname could not be safely resolved.") from exc
+    addresses = {record[4][0] for record in records}
+    if not addresses:
+        raise ValueError("A2A hostname returned no addresses.")
+    for raw_address in addresses:
+        try:
+            address = ipaddress.ip_address(raw_address.split("%", 1)[0])
+        except ValueError as exc:
+            raise ValueError("A2A hostname returned an invalid address.") from exc
+        if not address.is_global:
+            raise ValueError("A2A hostname resolves to a non-public address.")
+
+
+async def _read_json_limited(
+    client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    headers: dict[str, str],
+    payload: dict[str, Any] | None = None,
+) -> Any:
+    """Fetch JSON while bounding decompressed response bytes."""
+    await _check_public_dns(url)
+    chunks: list[bytes] = []
+    total = 0
+    async with client.stream(method, url, headers=headers, json=payload) as response:
+        response.raise_for_status()
+        async for chunk in response.aiter_bytes():
+            total += len(chunk)
+            if total > MAX_RESPONSE_BYTES:
+                raise ValueError("A2A response exceeded the configured size limit.")
+            chunks.append(chunk)
+    try:
+        return json.loads(b"".join(chunks).decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("A2A endpoint returned invalid JSON.") from exc
 
 
 class A2AClient:
@@ -63,18 +143,26 @@ class A2AClient:
     async def get_agent_card(self) -> dict[str, Any]:
         if not self.agent_card_url:
             raise RuntimeError("A2A_AGENT_CARD_URL is not configured.")
-        _https_origin(self.agent_card_url)
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
-            response = await client.get(self.agent_card_url, headers=self._headers())
-            response.raise_for_status()
-            card = response.json()
+        _parse_https_url(self.agent_card_url)
+        timeout = httpx.Timeout(READ_TIMEOUT, connect=CONNECT_TIMEOUT)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            card = await _read_json_limited(
+                client, "GET", self.agent_card_url, self._headers()
+            )
         if not isinstance(card, dict):
             raise ValueError("Agent Card response was not a JSON object.")
+        endpoint = card.get("url") or card.get("endpoint")
+        if not isinstance(endpoint, str):
+            raise ValueError("Agent Card must expose an HTTPS url or endpoint.")
+        _validate_endpoint(self.agent_card_url, endpoint)
         return card
 
     async def send_task(self, task_text: str) -> str:
-        if not task_text.strip():
+        if not isinstance(task_text, str) or not task_text.strip():
             raise ValueError("Task text must not be empty.")
+        if len(task_text) > MAX_TASK_CHARS:
+            raise ValueError(f"Task text exceeds {MAX_TASK_CHARS} characters.")
+
         card = await self.get_agent_card()
         endpoint = card.get("url") or card.get("endpoint")
         if not isinstance(endpoint, str):
@@ -93,12 +181,19 @@ class A2AClient:
                 },
             },
         }
-        async with httpx.AsyncClient(timeout=45.0, follow_redirects=False) as client:
-            response = await client.post(endpoint, headers=self._headers(), json=payload)
-            response.raise_for_status()
-            data = response.json()
+        timeout = httpx.Timeout(READ_TIMEOUT, connect=CONNECT_TIMEOUT)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            data = await _read_json_limited(
+                client, "POST", endpoint, self._headers(), payload
+            )
         if not isinstance(data, dict):
             raise ValueError("A2A response was not a JSON object.")
+        if data.get("jsonrpc") != "2.0" or "id" not in data:
+            raise ValueError("A2A response did not match the expected JSON-RPC envelope.")
         if "error" in data:
-            raise RuntimeError(f"Remote A2A error: {json.dumps(data['error'])}")
-        return json.dumps(data.get("result", data), ensure_ascii=False, indent=2)
+            # Do not include untrusted remote error content in exceptions or logs.
+            raise RuntimeError("Remote A2A agent returned an error.")
+        result = data.get("result")
+        if result is None:
+            raise ValueError("A2A response did not contain a result.")
+        return json.dumps(result, ensure_ascii=False, indent=2)
