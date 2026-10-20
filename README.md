@@ -28,6 +28,7 @@ This repository is an early starter scaffold. External integrations may require 
 - `status` — show configured integrations.
 - `remember: text` — explicitly save a local memory; optional `category|text` format sets a category.
 - `memories` — list recent locally saved memories.
+- `forget: ID` — delete one local memory by its numeric ID.
 - `recall: search text` — search local memories.
 - `ask: your question` — after explicit confirmation, send a question to the configured LLM API.
 - `mcp-tools` — after explicit confirmation, start the configured local MCP server and list discovered tools with a default-deny review policy.
