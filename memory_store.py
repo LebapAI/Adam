@@ -33,7 +33,6 @@ class MemoryStore:
         if self.path.exists() and not self.path.is_file():
             raise OSError("Memory database path is not a regular file.")
 
-        existed = self.path.exists()
         connection = sqlite3.connect(self.path, timeout=5)
         try:
             if hasattr(os, "chmod"):
