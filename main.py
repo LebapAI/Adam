@@ -8,7 +8,15 @@ from typing import Any
 
 import httpx
 from dotenv import load_dotenv
-from openai import APIError, AsyncOpenAI
+
+try:
+    from openai import APIError, AsyncOpenAI
+except ImportError:
+    AsyncOpenAI = None
+
+    class APIError(Exception):
+        """Fallback exception when the optional OpenAI package is unavailable."""
+
 
 from a2a_client import A2AClient
 from audit_log import AuditLogError, write_audit_event
@@ -29,7 +37,11 @@ class AdamAgent:
         api_key = os.getenv("LLM_API_KEY", "")
         base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
         self.model = os.getenv("LLM_MODEL", "")
-        self.llm = AsyncOpenAI(api_key=api_key, base_url=base_url) if api_key else None
+        self.llm = (
+            AsyncOpenAI(api_key=api_key, base_url=base_url)
+            if api_key and AsyncOpenAI is not None
+            else None
+        )
         self.mcp = MCPToolClient()
         self.memory = MemoryStore()
         self.a2a = A2AClient(
@@ -42,6 +54,8 @@ class AdamAgent:
             return "Please enter a question after 'ask:'."
         if len(prompt) > MAX_PROMPT_CHARS:
             return f"Question is too long. Limit: {MAX_PROMPT_CHARS} characters."
+        if AsyncOpenAI is None:
+            return "LLM package is not installed. Install requirements-llm.txt on a compatible platform."
         if not self.llm or not self.model:
             return "LLM is not configured. Set LLM_API_KEY and LLM_MODEL in .env."
         response = await self.llm.chat.completions.create(
@@ -64,6 +78,7 @@ class AdamAgent:
     async def status(self) -> dict[str, Any]:
         return {
             "agent": "Adam",
+            "llm_package_available": AsyncOpenAI is not None,
             "llm_configured": bool(self.llm and self.model),
             "mcp_command_configured": bool(os.getenv("MCP_SERVER_COMMAND")),
             "a2a_agent_card_configured": bool(os.getenv("A2A_AGENT_CARD_URL")),
