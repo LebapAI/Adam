@@ -14,7 +14,9 @@ venv/
 .pytest_cache/
 .mypy_cache/
 
-# Local data and logs
+# Local data, private memory, and logs
 adam_audit.jsonl
+adam_memory.sqlite3
+adam_memory.sqlite3-*
 *.log
 data/
