@@ -26,7 +26,8 @@ def tool_policy(tool: dict[str, str], allowed_names: Iterable[str]) -> dict[str,
     allowed = set(allowed_names)
     if not name:
         return {"name": "(unnamed)", "allowed": False, "reason": "missing tool name"}
-    if _RISKY_TOOL_TEXT.search(f"{name} {description}"):
+    risk_text = re.sub(r"[_-]+", " ", f"{name} {description}")
+    if _RISKY_TOOL_TEXT.search(risk_text):
         return {"name": name, "allowed": False, "reason": "potentially sensitive capability"}
     if name not in allowed:
         return {"name": name, "allowed": False, "reason": "not explicitly allowlisted"}
