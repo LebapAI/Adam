@@ -27,12 +27,25 @@ This repository is an early starter scaffold. External integrations may require 
 - `a2a: your task` — attempt to send a task to a configured A2A agent.
 - `exit` — quit.
 
+## Development and tests
+Install development dependencies and run the checks:
+
+```bash
+pip install -r requirements-dev.txt
+python -m compileall -q .
+python -m pytest -q
+ruff check .
+```
+
+GitHub Actions runs these checks on pushes and pull requests to `main` or `master`.
+
 ## Security
 - Never commit `.env`, API keys, passwords, or private keys.
 - Connect only to agents and MCP servers you trust and are authorized to use.
 - Do not execute code or commands returned by remote agents automatically.
 - Use least-privilege credentials and approval gates for consequential operations.
 - A successful network connection does not prove a remote agent is trustworthy.
+- Secret filtering is best-effort only; never send secrets to remote agents or rely on redaction as a security boundary.
 
 ## Integrations
 - **API:** OpenAI-compatible chat completions endpoint.
