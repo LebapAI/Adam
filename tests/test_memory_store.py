@@ -57,3 +57,17 @@ def test_memory_does_not_create_missing_parent_directory(tmp_path):
 
     with pytest.raises(OSError, match="directory"):
         store.remember("hello")
+
+def test_owner_can_forget_one_memory(tmp_path):
+    store = MemoryStore(str(tmp_path / "memory.sqlite3"))
+    memory_id = store.remember("remove this")
+    assert store.forget(memory_id) is True
+    assert store.forget(memory_id) is False
+    assert store.list_recent() == []
+
+def test_forget_rejects_invalid_ids(tmp_path):
+    store = MemoryStore(str(tmp_path / "memory.sqlite3"))
+    with pytest.raises(ValueError):
+        store.forget(0)
+    with pytest.raises(ValueError):
+        store.forget(True)
