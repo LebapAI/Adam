@@ -15,5 +15,6 @@ venv/
 .mypy_cache/
 
 # Local data and logs
+adam_audit.jsonl
 *.log
 data/
