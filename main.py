@@ -82,11 +82,20 @@ class AdamAgent:
         return screen_remote_text(await self.a2a.send_task(task))
 
 
-def confirm_sensitive_action(action: str, explanation: str) -> bool:
-    """Ask the owner to explicitly approve a sensitive operation."""
+def confirm_sensitive_action(
+    action: str,
+    explanation: str,
+    destination: str = "",
+    payload_preview: str = "",
+) -> bool:
+    """Show the destination and exact escaped payload before owner approval."""
     try:
         phrase = confirmation_phrase(action)
         print(explanation)
+        if destination:
+            print("Destination:", repr(destination))
+        if payload_preview:
+            print("Exact outgoing text (escaped representation):", repr(payload_preview))
         print("Do not send passwords, API keys, private keys, or other secrets.")
         response = input(f"Type {phrase} to continue (anything else cancels): ")
     except (EOFError, KeyboardInterrupt, ValueError):
@@ -185,9 +194,14 @@ async def main() -> None:
                 print("MCP connection failed. Check the local server command and configuration.")
         elif line.lower().startswith("ask:"):
             prompt = line[4:].strip()
+            if screen_remote_text(prompt) != prompt:
+                print("Blocked: the text resembles a credential or secret. Remove it before sending.")
+                continue
             if not confirm_sensitive_action(
                 "send_to_llm",
                 "This sends your question to the configured external LLM provider.",
+                os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
+                prompt,
             ):
                 continue
             try:
@@ -198,9 +212,14 @@ async def main() -> None:
                 print("Model request failed. Check the API endpoint, credentials, and network.")
         elif line.lower().startswith("a2a:"):
             task = line[4:].strip()
+            if screen_remote_text(task) != task:
+                print("Blocked: the text resembles a credential or secret. Remove it before sending.")
+                continue
             if not confirm_sensitive_action(
                 "send_to_a2a",
                 "This sends your task to the configured external A2A agent.",
+                os.getenv("A2A_AGENT_CARD_URL", ""),
+                task,
             ):
                 continue
             try:
