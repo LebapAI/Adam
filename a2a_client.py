@@ -6,8 +6,37 @@ Agent Card and documentation before using this adapter with a real service.
 import json
 import uuid
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
+
+
+def _https_origin(url: str) -> tuple[str, int]:
+    """Return a normalized HTTPS origin, rejecting unsafe or malformed URLs."""
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port or 443
+    except ValueError as exc:
+        raise ValueError("Invalid HTTPS URL.") from exc
+    if (
+        parsed.scheme.lower() != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise ValueError("A valid HTTPS URL without embedded credentials is required.")
+    return parsed.hostname.lower(), port
+
+
+def _validate_endpoint(agent_card_url: str, endpoint: str) -> str:
+    """Require the task endpoint to share the configured Agent Card origin."""
+    if not isinstance(endpoint, str) or not endpoint.strip():
+        raise ValueError("Agent Card must expose a valid HTTPS url or endpoint.")
+    if _https_origin(agent_card_url) != _https_origin(endpoint):
+        raise ValueError(
+            "Agent task endpoint must use the same HTTPS origin as its Agent Card."
+        )
+    return endpoint
 
 
 class A2AClient:
@@ -24,6 +53,7 @@ class A2AClient:
     async def get_agent_card(self) -> dict[str, Any]:
         if not self.agent_card_url:
             raise RuntimeError("A2A_AGENT_CARD_URL is not configured.")
+        _https_origin(self.agent_card_url)
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
             response = await client.get(self.agent_card_url, headers=self._headers())
             response.raise_for_status()
@@ -33,12 +63,13 @@ class A2AClient:
         return card
 
     async def send_task(self, task_text: str) -> str:
-        if not task_text:
+        if not task_text.strip():
             raise ValueError("Task text must not be empty.")
         card = await self.get_agent_card()
         endpoint = card.get("url") or card.get("endpoint")
-        if not isinstance(endpoint, str) or not endpoint.startswith("https://"):
-            raise ValueError("Agent Card must expose an HTTPS url or endpoint; adapt to the server's A2A version.")
+        if not isinstance(endpoint, str):
+            raise ValueError("Agent Card must expose an HTTPS url or endpoint.")
+        _validate_endpoint(self.agent_card_url, endpoint)
 
         payload = {
             "jsonrpc": "2.0",
