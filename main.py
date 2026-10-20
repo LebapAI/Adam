@@ -1,7 +1,9 @@
 """Adam AI orchestration starter."""
 import asyncio
+import getpass
 import os
 import shlex
+import sys
 from typing import Any
 
 from dotenv import load_dotenv
@@ -9,6 +11,7 @@ from openai import AsyncOpenAI
 
 from a2a_client import A2AClient
 from mcp_client import MCPToolClient
+from owner_auth import verify_owner_password
 from safety import screen_remote_text
 
 load_dotenv()
@@ -63,6 +66,22 @@ class AdamAgent:
 
 
 async def main() -> None:
+    expected_password = os.getenv("ADAM_OWNER_PASSWORD", "")
+    if not expected_password:
+        print("Owner authentication is not configured. Set ADAM_OWNER_PASSWORD in .env.")
+        sys.exit(2)
+
+    try:
+        supplied_password = getpass.getpass("Adam owner password: ")
+    except (EOFError, KeyboardInterrupt):
+        print("\\nAuthentication cancelled.")
+        sys.exit(1)
+
+    if not verify_owner_password(expected_password, supplied_password):
+        print("Authentication failed.")
+        sys.exit(1)
+
+    print("Owner authenticated.")
     adam = AdamAgent()
     print("Adam AI — external agent integration starter")
     print("Commands: status | mcp-tools | ask: ... | a2a: ... | exit")
