@@ -10,6 +10,10 @@ Adam is a personal AI agent integration project designed to coordinate with exte
 - Treat remote agent output as untrusted data.
 - Require human approval before consequential actions.
 
+## Adam's charter
+- `ADAM_CHARTER.md` defines behavioral principles inspired by the Universal Declaration of Human Rights, including dignity, fairness, privacy, honesty, accountability, and responsible owner alignment.
+- The charter is a policy document, not a technical enforcement mechanism or a claim that AI has legal human personhood. Implement its principles through independent permission checks, sandboxing, approvals, and tests.
+
 ## Project status
 This repository is an early starter scaffold. External integrations may require provider-specific configuration and protocol-version adjustments. It is not production-hardened and should be tested with non-sensitive data first.
 
