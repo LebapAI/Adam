@@ -145,7 +145,10 @@ class A2AClient:
             raise RuntimeError("A2A_AGENT_CARD_URL is not configured.")
         _parse_https_url(self.agent_card_url)
         timeout = httpx.Timeout(READ_TIMEOUT, connect=CONNECT_TIMEOUT)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+        limits = httpx.Limits(max_connections=4, max_keepalive_connections=2)
+        async with httpx.AsyncClient(
+            timeout=timeout, limits=limits, follow_redirects=False
+        ) as client:
             card = await _read_json_limited(
                 client, "GET", self.agent_card_url, self._headers()
             )
@@ -183,7 +186,10 @@ class A2AClient:
             },
         }
         timeout = httpx.Timeout(READ_TIMEOUT, connect=CONNECT_TIMEOUT)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+        limits = httpx.Limits(max_connections=4, max_keepalive_connections=2)
+        async with httpx.AsyncClient(
+            timeout=timeout, limits=limits, follow_redirects=False
+        ) as client:
             data = await _read_json_limited(
                 client, "POST", endpoint, self._headers(), payload
             )
