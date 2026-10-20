@@ -10,6 +10,7 @@ import httpx
 from dotenv import load_dotenv
 
 from a2a_client import A2AClient
+from api_errors import http_status_hint
 from audit_log import AuditLogError, write_audit_event
 from authorization import confirmation_granted, confirmation_phrase
 try:
@@ -283,9 +284,14 @@ async def main() -> None:
             try:
                 print("Adam:", await adam.ask_model(prompt))
                 record_result("external_llm_request", True, "request_completed")
-            except (httpx.HTTPError, OSError, ValueError, RuntimeError, TimeoutError):
+            except httpx.HTTPStatusError as exc:
+                record_result("external_llm_request", False, "http_status_error")
+                print(f"API returned HTTP {exc.response.status_code}.")
+                print("Details:", http_status_hint(exc.response.status_code))
+            except (httpx.HTTPError, OSError, ValueError, RuntimeError, TimeoutError) as exc:
                 record_result("external_llm_request", False, "request_error")
-                print("Model request failed. Check the API endpoint, credentials, and network.")
+                print("Request failed:", type(exc).__name__)
+                print("Check the internet connection, API endpoint, and local configuration.")
         elif line.lower().startswith("a2a:"):
             task = line[4:].strip()
             if screen_remote_text(task) != task:
