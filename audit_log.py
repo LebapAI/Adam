@@ -60,13 +60,13 @@ def write_audit_event(action: str, outcome: str, reason: str) -> None:
     fd: int | None = None
     try:
         fd = os.open(path, flags, 0o600)
-        try:
+        if hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
+        else:
             os.chmod(path, 0o600)
-        except OSError:
-            # File creation mode remains restrictive on POSIX; do not silently
-            # ignore a permission correction failure on an existing file.
-            raise
-        payload = (json.dumps(event, separators=(",", ":"), sort_keys=True) + "\n").encode("utf-8")
+        payload = (
+            json.dumps(event, separators=(",", ":"), sort_keys=True) + "\n"
+        ).encode("utf-8")
         with os.fdopen(fd, "ab", closefd=True) as stream:
             fd = None
             stream.write(payload)
