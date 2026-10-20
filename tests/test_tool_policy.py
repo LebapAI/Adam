@@ -44,3 +44,26 @@ def test_risky_underscore_name_is_denied_even_with_allowlist():
     )
     assert result["allowed"] is False
     assert result["reason"] == "potentially sensitive capability"
+
+
+
+def test_non_string_tool_name_is_denied_without_crashing():
+    result = tool_policy({"name": None, "description": "Search"}, {"search"})
+    assert result["allowed"] is False
+    assert result["reason"] == "missing or invalid tool name"
+
+
+def test_non_mapping_tool_metadata_is_denied():
+    result = tool_policy(None, {"search"})
+    assert result["allowed"] is False
+    assert result["reason"] == "invalid tool metadata"
+
+
+def test_non_string_allowlist_setting_fails_closed():
+    assert parse_tool_allowlist(None) == set()
+
+
+def test_non_string_description_does_not_crash_or_grant_access():
+    result = tool_policy({"name": "search_docs", "description": {"unexpected": "data"}}, {"search_docs"})
+    assert result["allowed"] is True
+    assert "execution is not implemented" in str(result["reason"])
