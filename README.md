@@ -22,9 +22,9 @@ This repository is an early starter scaffold. External integrations may require 
 
 ## Commands
 - `status` — show configured integrations.
-- `ask: your question` — send a question to the configured LLM API.
-- `mcp-tools` — list tools from the configured local MCP server.
-- `a2a: your task` — attempt to send a task to a configured A2A agent.
+- `ask: your question` — after explicit confirmation, send a question to the configured LLM API.
+- `mcp-tools` — after explicit confirmation, start the configured local MCP server and list its tools.
+- `a2a: your task` — after explicit confirmation, send a task to a configured A2A agent.
 - `exit` — quit.
 
 ## Development and tests
@@ -46,6 +46,7 @@ GitHub Actions runs these checks on pushes and pull requests to `main` or `maste
 - CLI errors intentionally avoid printing raw provider exception details, which may contain sensitive request or response data.
 - Model and A2A responses pass through best-effort secret-pattern filtering before display. This is not a guarantee and does not make it safe to submit secrets to external services.
 - Connect only to agents and MCP servers you trust and are authorized to use.
+- Adam requires an explicit typed confirmation (`SEND` or `START`) before sending text to an external LLM/A2A service or starting the configured MCP process.
 - Do not execute code or commands returned by remote agents automatically.
 - Use least-privilege credentials and approval gates for consequential operations.
 - A successful network connection does not prove a remote agent is trustworthy.
