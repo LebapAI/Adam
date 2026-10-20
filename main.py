@@ -170,7 +170,7 @@ async def main() -> None:
     print("Owner authenticated.")
     adam = AdamAgent()
     print("Adam AI — external agent integration starter")
-    print("Commands: status | remember: ... | memories | recall: ... | mcp-tools | ask: ... | a2a: ... | exit")
+    print("Commands: status | remember: ... | memories | recall: ... | forget: ID | mcp-tools | ask: ... | a2a: ... | exit")
     while True:
         try:
             line = input("\nYou > ").strip()
@@ -191,6 +191,16 @@ async def main() -> None:
                 print(f"Saved local memory #{memory_id}.")
             except (OSError, ValueError):
                 print("Memory was not saved. Check its length, category, and local storage path.")
+        elif line.lower().startswith("forget:"):
+            raw_id = line[len("forget:"):].strip()
+            try:
+                memory_id = int(raw_id)
+                if adam.memory.forget(memory_id):
+                    print(f"Deleted local memory #{memory_id}.")
+                else:
+                    print("No memory found with that ID.")
+            except (OSError, ValueError):
+                print("Could not delete memory. Use forget: followed by a positive numeric ID.")
         elif line.lower() == "memories":
             try:
                 entries = adam.memory.list_recent()
@@ -261,7 +271,7 @@ async def main() -> None:
                 record_result("external_a2a_request", False, "request_error")
                 print("A2A request failed. Check the HTTPS Agent Card URL and remote agent configuration.")
         else:
-            print("Unknown command. Try status, remember: ..., memories, recall: ..., mcp-tools, ask: ..., a2a: ..., or exit.")
+            print("Unknown command. Try status, remember: ..., memories, recall: ..., forget: ID, mcp-tools, ask: ..., a2a: ..., or exit.")
 
 
 if __name__ == "__main__":
