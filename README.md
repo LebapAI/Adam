@@ -50,7 +50,7 @@ GitHub Actions runs these checks on pushes and pull requests to `main` or `maste
 ## Integrations
 - **API:** OpenAI-compatible chat completions endpoint.
 - **MCP:** local stdio MCP server using the official Python SDK.
-- **A2A:** a basic adapter for an agent that publishes a compatible Agent Card and task endpoint. A2A implementations vary; check the remote agent's documentation.
+- **A2A:** a basic adapter for an agent that publishes a compatible Agent Card and task endpoint. The current adapter requires HTTPS and the task endpoint to share the Agent Card's origin to reduce credential leakage risk. A2A implementations vary; check the remote agent's documentation.
 
 ## License
 No license has been selected yet. Until a license is added, do not assume others have permission to reuse this code.
