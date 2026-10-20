@@ -14,6 +14,7 @@ from audit_log import AuditLogError, write_audit_event
 from authorization import confirmation_granted, confirmation_phrase
 from mcp_client import MCPToolClient
 from owner_auth import verify_owner_password
+from memory_store import MemoryStore
 from safety import screen_remote_text
 from tool_policy import parse_tool_allowlist, tool_policy
 
@@ -29,6 +30,7 @@ class AdamAgent:
         self.model = os.getenv("LLM_MODEL", "")
         self.llm = AsyncOpenAI(api_key=api_key, base_url=base_url) if api_key else None
         self.mcp = MCPToolClient()
+        self.memory = MemoryStore()
         self.a2a = A2AClient(
             agent_card_url=os.getenv("A2A_AGENT_CARD_URL", ""),
             bearer_token=os.getenv("A2A_BEARER_TOKEN", ""),
@@ -168,7 +170,7 @@ async def main() -> None:
     print("Owner authenticated.")
     adam = AdamAgent()
     print("Adam AI — external agent integration starter")
-    print("Commands: status | mcp-tools | ask: ... | a2a: ... | exit")
+    print("Commands: status | remember: ... | memories | recall: ... | mcp-tools | ask: ... | a2a: ... | exit")
     while True:
         try:
             line = input("\nYou > ").strip()
@@ -179,6 +181,35 @@ async def main() -> None:
             break
         if line.lower() == "status":
             print(await adam.status())
+        elif line.lower().startswith("remember:"):
+            raw_memory = line[len("remember:"):].strip()
+            category, separator, content = raw_memory.partition("|")
+            if not separator:
+                category, content = "note", raw_memory
+            try:
+                memory_id = adam.memory.remember(content, category)
+                print(f"Saved local memory #{memory_id}.")
+            except (OSError, ValueError):
+                print("Memory was not saved. Check its length, category, and local storage path.")
+        elif line.lower() == "memories":
+            try:
+                entries = adam.memory.list_recent()
+                if not entries:
+                    print("No memories saved yet.")
+                for entry in entries:
+                    print("#{} [{}] {} — {}".format(entry["id"], entry["category"], entry["created_at"], entry["content"]))
+            except (OSError, ValueError):
+                print("Could not read local memory.")
+        elif line.lower().startswith("recall:"):
+            query = line[len("recall:"):].strip()
+            try:
+                entries = adam.memory.search(query)
+                if not entries:
+                    print("No matching memories found.")
+                for entry in entries:
+                    print("#{} [{}] {} — {}".format(entry["id"], entry["category"], entry["created_at"], entry["content"]))
+            except (OSError, ValueError):
+                print("Memory search failed. Check the query and local storage path.")
         elif line.lower() == "mcp-tools":
             if not confirm_sensitive_action(
                 "start_mcp_server",
@@ -230,7 +261,7 @@ async def main() -> None:
                 record_result("external_a2a_request", False, "request_error")
                 print("A2A request failed. Check the HTTPS Agent Card URL and remote agent configuration.")
         else:
-            print("Unknown command. Try status, mcp-tools, ask: ..., a2a: ..., or exit.")
+            print("Unknown command. Try status, remember: ..., memories, recall: ..., mcp-tools, ask: ..., a2a: ..., or exit.")
 
 
 if __name__ == "__main__":
