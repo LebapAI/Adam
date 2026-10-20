@@ -74,7 +74,7 @@ async def main() -> None:
     try:
         supplied_password = getpass.getpass("Adam owner password: ")
     except (EOFError, KeyboardInterrupt):
-        print("\\nAuthentication cancelled.")
+        print("\nAuthentication cancelled.")
         sys.exit(1)
 
     if not verify_owner_password(expected_password, supplied_password):
