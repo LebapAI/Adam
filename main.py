@@ -12,7 +12,15 @@ from dotenv import load_dotenv
 from a2a_client import A2AClient
 from audit_log import AuditLogError, write_audit_event
 from authorization import confirmation_granted, confirmation_phrase
-from mcp_client import MCPToolClient
+try:
+    from mcp_client import MCPToolClient
+except ImportError:
+    class MCPToolClient:
+        """Fallback when the optional MCP dependencies are unavailable."""
+
+        async def list_tools(self, command: list[str]) -> list[dict[str, Any]]:
+            raise RuntimeError("MCP dependencies are not installed on this platform.")
+
 from memory_store import MemoryStore
 from owner_auth import verify_owner_password
 from safety import screen_remote_text
@@ -72,7 +80,6 @@ class AdamAgent:
             ],
             temperature=0.2,
         )
-        # Display filtering is defense-in-depth only; never send secrets to remote services.
         return screen_remote_text(response.choices[0].message.content or "")
 
     async def status(self) -> dict[str, Any]:
@@ -80,6 +87,7 @@ class AdamAgent:
             "agent": "Adam",
             "llm_package_available": AsyncOpenAI is not None,
             "llm_configured": bool(self.llm and self.model),
+            "mcp_package_available": _MCP_AVAILABLE,
             "mcp_command_configured": bool(os.getenv("MCP_SERVER_COMMAND")),
             "a2a_agent_card_configured": bool(os.getenv("A2A_AGENT_CARD_URL")),
             "local_memory_enabled": True,
@@ -88,6 +96,8 @@ class AdamAgent:
         }
 
     async def list_mcp_tools(self) -> list[dict[str, Any]]:
+        if not _MCP_AVAILABLE:
+            raise RuntimeError("MCP dependencies are not installed on this platform.")
         command = os.getenv("MCP_SERVER_COMMAND", "").strip()
         if not command:
             return []
