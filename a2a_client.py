@@ -169,7 +169,7 @@ class A2AClient:
         card = await self.get_agent_card()
         endpoint = card.get("url") or card.get("endpoint")
         if not isinstance(endpoint, str):
-            raise ValueError("Agent Card must expose an HTTPS url or endpoint.")
+            raise TypeError("Agent Card must expose an HTTPS url or endpoint.")
         _validate_endpoint(self.agent_card_url, endpoint)
 
         request_id = str(uuid.uuid4())
