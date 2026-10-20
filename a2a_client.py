@@ -3,6 +3,7 @@
 A2A protocol versions and server implementations may differ. Review the remote
 Agent Card and documentation before using this adapter with a real service.
 """
+import ipaddress
 import json
 import uuid
 from typing import Any
@@ -25,7 +26,16 @@ def _https_origin(url: str) -> tuple[str, int]:
         or parsed.password is not None
     ):
         raise ValueError("A valid HTTPS URL without embedded credentials is required.")
-    return parsed.hostname.lower(), port
+    hostname = parsed.hostname.lower().rstrip(".")
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        raise ValueError("Localhost endpoints are not allowed.")
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        address = None
+    if address is not None and not address.is_global:
+        raise ValueError("Non-public IP addresses are not allowed for A2A endpoints.")
+    return hostname, port
 
 
 def _validate_endpoint(agent_card_url: str, endpoint: str) -> str:
