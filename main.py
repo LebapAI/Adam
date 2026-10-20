@@ -66,6 +66,9 @@ class AdamAgent:
             "llm_configured": bool(self.llm and self.model),
             "mcp_command_configured": bool(os.getenv("MCP_SERVER_COMMAND")),
             "a2a_agent_card_configured": bool(os.getenv("A2A_AGENT_CARD_URL")),
+            "local_memory_enabled": True,
+            "charter_file_present": os.path.isfile("ADAM_CHARTER.md"),
+            "mcp_tool_execution_enabled": False,
         }
 
     async def list_mcp_tools(self) -> list[dict[str, Any]]:
