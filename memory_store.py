@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 DEFAULT_DB = "adam_memory.sqlite3"
@@ -61,7 +61,7 @@ class MemoryStore:
     @staticmethod
     def _validate_text(value: str, label: str, maximum: int) -> str:
         if not isinstance(value, str):
-            raise ValueError(f"{label} must be text.")
+            raise TypeError(f"{label} must be text.")
         value = value.strip()
         if not value or len(value) > maximum or "\x00" in value:
             raise ValueError(f"{label} must be between 1 and {maximum} characters.")
@@ -73,7 +73,7 @@ class MemoryStore:
         category = self._validate_text(category, "Category", 40).lower()
         if not all(char.isalnum() or char in "_-" for char in category):
             raise ValueError("Category may contain only letters, numbers, '_' and '-'.")
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         with self._connect() as connection:
             cursor = connection.execute(
                 "INSERT INTO memories(created_at, category, content) VALUES (?, ?, ?)",
@@ -92,7 +92,7 @@ class MemoryStore:
     def list_recent(self, limit: int = 20) -> list[dict[str, object]]:
         """Return recent memories, bounded to avoid unbounded output."""
         if not isinstance(limit, int) or isinstance(limit, bool):
-            raise ValueError("Limit must be an integer.")
+            raise TypeError("Limit must be an integer.")
         limit = max(1, min(limit, MAX_RESULTS))
         with self._connect() as connection:
             rows = connection.execute(
