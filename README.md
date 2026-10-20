@@ -17,7 +17,7 @@ This repository is an early starter scaffold. External integrations may require 
 1. Install Python 3.11 or newer.
 2. Create a virtual environment.
 3. Install dependencies: `pip install -r requirements.txt`
-4. Copy `.env.example` to `.env`, set a long unique `ADAM_OWNER_PASSWORD`, and configure the API settings you plan to use.
+4. Copy `.env.example` to `.env`, set a unique `ADAM_OWNER_PASSWORD` of at least 16 characters, and configure only the API settings you plan to use.
 5. Run: `python main.py`
 
 ## Commands
@@ -41,7 +41,10 @@ GitHub Actions runs these checks on pushes and pull requests to `main` or `maste
 
 ## Security
 - Never commit `.env`, API keys, passwords, or private keys.
-- Adam requires the configured owner password before accepting CLI commands. Choose a new, unique password and do not reuse a password shared in a chat.
+- Adam requires the configured owner password (minimum 16 characters) before accepting CLI commands. Choose a new, unique password and do not reuse a password shared in a chat.
+- Keep `.env` local and restrict its file permissions. Environment variables can be exposed by the host or process; for production, prefer a dedicated secrets manager where available.
+- CLI errors intentionally avoid printing raw provider exception details, which may contain sensitive request or response data.
+- Model and A2A responses pass through best-effort secret-pattern filtering before display. This is not a guarantee and does not make it safe to submit secrets to external services.
 - Connect only to agents and MCP servers you trust and are authorized to use.
 - Do not execute code or commands returned by remote agents automatically.
 - Use least-privilege credentials and approval gates for consequential operations.
