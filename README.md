@@ -44,6 +44,7 @@ GitHub Actions runs these checks on pushes and pull requests to `main` or `maste
 - Adam requires the configured owner password (minimum 16 characters) before accepting CLI commands. Choose a new, unique password and do not reuse a password shared in a chat.
 - Keep `.env` local and restrict its file permissions. Environment variables can be exposed by the host or process; for production, prefer a dedicated secrets manager where available.
 - CLI errors intentionally avoid printing raw provider exception details, which may contain sensitive request or response data.
+- A local JSONL audit log (`ADAM_AUDIT_LOG`, default `adam_audit.jsonl`) records UTC timestamps and fixed action/outcome codes only; it does not record prompts, credentials, tool arguments, or remote response bodies. Adam refuses to start or proceed with a confirmed sensitive action if the approval event cannot be logged. Protect the log file and review retention needs.
 - Model and A2A responses pass through best-effort secret-pattern filtering before display. This is not a guarantee and does not make it safe to submit secrets to external services.
 - Connect only to agents and MCP servers you trust and are authorized to use.
 - Adam requires an explicit typed confirmation (`SEND` or `START`) before sending text to an external LLM/A2A service or starting the configured MCP process.
