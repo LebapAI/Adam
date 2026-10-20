@@ -14,6 +14,7 @@ from authorization import confirmation_granted, confirmation_phrase
 from mcp_client import MCPToolClient
 from owner_auth import verify_owner_password
 from safety import screen_remote_text
+from tool_policy import parse_tool_allowlist, tool_policy
 
 load_dotenv()
 
@@ -64,11 +65,13 @@ class AdamAgent:
             "a2a_agent_card_configured": bool(os.getenv("A2A_AGENT_CARD_URL")),
         }
 
-    async def list_mcp_tools(self) -> list[dict[str, str]]:
+    async def list_mcp_tools(self) -> list[dict[str, Any]]:
         command = os.getenv("MCP_SERVER_COMMAND", "").strip()
         if not command:
             return []
-        return await self.mcp.list_tools(shlex.split(command))
+        discovered = await self.mcp.list_tools(shlex.split(command))
+        allowed_names = parse_tool_allowlist(os.getenv("MCP_ALLOWED_TOOLS", ""))
+        return [tool_policy(tool, allowed_names) for tool in discovered]
 
     async def ask_remote_a2a(self, task: str) -> str:
         if not task.strip():
