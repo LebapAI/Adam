@@ -49,6 +49,9 @@ GitHub Actions runs these checks on pushes and pull requests to `main` or `maste
 - Connect only to agents and MCP servers you trust and are authorized to use.
 - Adam requires an explicit typed confirmation (`SEND` or `START`) before sending text to an external LLM/A2A service or starting the configured MCP process.
 - MCP tools are denied by default. `MCP_ALLOWED_TOOLS` is an exact comma-separated allowlist for review; potentially sensitive tool names/descriptions remain blocked. This currently labels discovered tools only—Adam does not execute MCP tools.
+- The MCP child process receives a minimal environment; `MCP_SERVER_ENV_ALLOWLIST` explicitly passes only named variables. Owner password, LLM API key, A2A bearer token, and the MCP command setting are never forwarded by this helper.
+- A2A validates HTTPS, same-origin task endpoints, public DNS answers, and bounded JSON responses, and disables redirects. DNS checks by themselves cannot fully eliminate rebinding races; production use still requires outbound network/egress controls that block private, loopback, link-local, and metadata-service destinations.
+- Before external LLM/A2A transmission, Adam shows the destination and escaped outgoing text for confirmation and blocks common secret-shaped strings. Pattern checks are not complete secret detection; never paste credentials or sensitive private data into outbound prompts.
 - Do not execute code or commands returned by remote agents automatically.
 - Use least-privilege credentials and approval gates for consequential operations.
 - A successful network connection does not prove a remote agent is trustworthy.
