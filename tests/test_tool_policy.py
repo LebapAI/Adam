@@ -36,3 +36,11 @@ def test_allowlist_is_exact_and_strips_whitespace():
 
 def test_missing_name_is_denied():
     assert tool_policy({"description": "No name"}, set())["allowed"] is False
+
+def test_risky_underscore_name_is_denied_even_with_allowlist():
+    result = tool_policy(
+        {"name": "delete_file", "description": "File operation"},
+        {"delete_file"},
+    )
+    assert result["allowed"] is False
+    assert result["reason"] == "potentially sensitive capability"
