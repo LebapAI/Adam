@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from a2a_client import A2AClient
+from audit_log import AuditLogError, write_audit_event
 from authorization import confirmation_granted, confirmation_phrase
 from mcp_client import MCPToolClient
 from owner_auth import verify_owner_password
@@ -91,10 +92,38 @@ def confirm_sensitive_action(action: str, explanation: str) -> bool:
     except (EOFError, KeyboardInterrupt, ValueError):
         print("Action cancelled.")
         return False
+    audit_action = {
+        "send_to_llm": "external_llm_request",
+        "send_to_a2a": "external_a2a_request",
+        "start_mcp_server": "mcp_tool_discovery",
+    }.get(action)
     if not confirmation_granted(action, response):
         print("Action cancelled.")
+        if audit_action:
+            try:
+                write_audit_event(audit_action, "cancelled", "user_cancelled")
+            except AuditLogError:
+                print("Audit log unavailable; action remains cancelled.")
         return False
+    if audit_action:
+        try:
+            write_audit_event(audit_action, "success", "owner_approved")
+        except AuditLogError:
+            print("Audit log unavailable; refusing to start the operation.")
+            return False
     return True
+
+
+def record_result(action: str, succeeded: bool, success_reason: str) -> None:
+    """Record a result without exposing prompts, credentials, or provider errors."""
+    try:
+        write_audit_event(
+            action,
+            "success" if succeeded else "failure",
+            success_reason if succeeded else "request_error",
+        )
+    except AuditLogError:
+        print("Warning: audit log could not record the operation result.")
 
 
 async def main() -> None:
@@ -113,8 +142,19 @@ async def main() -> None:
         sys.exit(1)
 
     if not verify_owner_password(expected_password, supplied_password):
+        try:
+            write_audit_event("owner_auth", "failure", "invalid_password")
+        except AuditLogError:
+            print("Authentication failed; audit log unavailable.")
+            sys.exit(2)
         print("Authentication failed.")
         sys.exit(1)
+
+    try:
+        write_audit_event("owner_auth", "success", "authenticated")
+    except AuditLogError:
+        print("Audit log unavailable; refusing to start Adam.")
+        sys.exit(2)
 
     print("Owner authenticated.")
     adam = AdamAgent()
@@ -139,7 +179,9 @@ async def main() -> None:
                 continue
             try:
                 print(await adam.list_mcp_tools())
+                record_result("mcp_tool_discovery", True, "discovery_completed")
             except Exception:
+                record_result("mcp_tool_discovery", False, "discovery_error")
                 print("MCP connection failed. Check the local server command and configuration.")
         elif line.lower().startswith("ask:"):
             prompt = line[4:].strip()
@@ -150,7 +192,9 @@ async def main() -> None:
                 continue
             try:
                 print("Adam:", await adam.ask_model(prompt))
+                record_result("external_llm_request", True, "request_completed")
             except Exception:
+                record_result("external_llm_request", False, "request_error")
                 print("Model request failed. Check the API endpoint, credentials, and network.")
         elif line.lower().startswith("a2a:"):
             task = line[4:].strip()
@@ -161,7 +205,9 @@ async def main() -> None:
                 continue
             try:
                 print("Remote agent:", await adam.ask_remote_a2a(task))
+                record_result("external_a2a_request", True, "request_completed")
             except Exception:
+                record_result("external_a2a_request", False, "request_error")
                 print("A2A request failed. Check the HTTPS Agent Card URL and remote agent configuration.")
         else:
             print("Unknown command. Try status, mcp-tools, ask: ..., a2a: ..., or exit.")
