@@ -26,11 +26,19 @@ def tool_policy(
 ) -> dict[str, str | bool]:
     """Return a conservative display policy; malformed tools are denied."""
     if not isinstance(tool, Mapping):
-        return {"name": "(invalid)", "allowed": False, "reason": "invalid tool metadata"}
+        return {
+            "name": "(invalid)",
+            "allowed": False,
+            "reason": "invalid tool metadata",
+        }
 
     raw_name = tool.get("name", "")
     if not isinstance(raw_name, str) or not raw_name.strip():
-        return {"name": "(unnamed)", "allowed": False, "reason": "missing or invalid tool name"}
+        return {
+            "name": "(unnamed)",
+            "allowed": False,
+            "reason": "missing or invalid tool name",
+        }
 
     name = raw_name.strip()
     raw_description = tool.get("description", "")
@@ -42,9 +50,17 @@ def tool_policy(
 
     risk_text = re.sub(r"[_-]+", " ", f"{name} {description}")
     if _RISKY_TOOL_TEXT.search(risk_text):
-        return {"name": name, "allowed": False, "reason": "potentially sensitive capability"}
+        return {
+            "name": name,
+            "allowed": False,
+            "reason": "potentially sensitive capability",
+        }
     if name not in allowed:
-        return {"name": name, "allowed": False, "reason": "not explicitly allowlisted"}
+        return {
+            "name": name,
+            "allowed": False,
+            "reason": "not explicitly allowlisted",
+        }
     return {
         "name": name,
         "allowed": True,
