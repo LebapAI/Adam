@@ -26,3 +26,8 @@ Please do not publish passwords, API keys, access tokens, private data, or a wor
 ## Current Limitations
 
 The project is an early scaffold. Security documentation does not imply that every listed control has been implemented. In particular, discovering or allowlisting a remote tool must not be treated as permission to execute it. Do not connect live financial accounts or production secrets until the implementation has been independently reviewed and tested.
+
+
+## Defense Architecture
+
+See [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) for the threat model and layered defenses required before enabling execution of external-agent tools.
