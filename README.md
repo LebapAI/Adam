@@ -26,10 +26,18 @@ This repository is an early starter scaffold. External integrations may require 
 
 ## Commands
 - `status` — show configured integrations.
+- `remember: text` — explicitly save a local memory; optional `category|text` format sets a category.
+- `memories` — list recent locally saved memories.
+- `recall: search text` — search local memories.
 - `ask: your question` — after explicit confirmation, send a question to the configured LLM API.
 - `mcp-tools` — after explicit confirmation, start the configured local MCP server and list discovered tools with a default-deny review policy.
 - `a2a: your task` — after explicit confirmation, send a task to a configured A2A agent.
 - `exit` — quit.
+
+## Local memory
+- Memories are saved only when the owner explicitly uses `remember:`; the program does not silently capture conversations.
+- The local SQLite database defaults to `adam_memory.sqlite3` and can be changed with `ADAM_MEMORY_DB`.
+- File permissions are restricted where supported. Local memory is not encrypted by this feature; use full-disk encryption and a trusted device. Memory is not automatically sent to an external LLM.
 
 ## Development and tests
 Install development dependencies and run the checks:
