@@ -9,15 +9,6 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 
-try:
-    from openai import APIError, AsyncOpenAI
-except ImportError:
-    AsyncOpenAI = None
-
-    class APIError(Exception):
-        """Fallback exception when the optional OpenAI package is unavailable."""
-
-
 from a2a_client import A2AClient
 from audit_log import AuditLogError, write_audit_event
 from authorization import confirmation_granted, confirmation_phrase
@@ -26,6 +17,15 @@ from memory_store import MemoryStore
 from owner_auth import verify_owner_password
 from safety import screen_remote_text
 from tool_policy import parse_tool_allowlist, tool_policy
+
+try:
+    from openai import APIError, AsyncOpenAI
+except ImportError:
+    AsyncOpenAI = None
+
+    class APIError(Exception):
+        """Fallback exception when the optional OpenAI package is unavailable."""
+
 
 load_dotenv()
 
@@ -55,7 +55,7 @@ class AdamAgent:
         if len(prompt) > MAX_PROMPT_CHARS:
             return f"Question is too long. Limit: {MAX_PROMPT_CHARS} characters."
         if AsyncOpenAI is None:
-            return "LLM package is not installed. Install requirements-llm.txt on a compatible platform."
+            return "LLM package is not installed. Install openai on a compatible platform."
         if not self.llm or not self.model:
             return "LLM is not configured. Set LLM_API_KEY and LLM_MODEL in .env."
         response = await self.llm.chat.completions.create(
