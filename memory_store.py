@@ -81,6 +81,14 @@ class MemoryStore:
             )
             return int(cursor.lastrowid)
 
+    def forget(self, memory_id: int) -> bool:
+        """Delete one memory by its numeric ID; return whether it existed."""
+        if not isinstance(memory_id, int) or isinstance(memory_id, bool) or memory_id < 1:
+            raise ValueError("Memory ID must be a positive integer.")
+        with self._connect() as connection:
+            cursor = connection.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+            return cursor.rowcount > 0
+
     def list_recent(self, limit: int = 20) -> list[dict[str, object]]:
         """Return recent memories, bounded to avoid unbounded output."""
         if not isinstance(limit, int) or isinstance(limit, bool):
