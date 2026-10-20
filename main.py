@@ -6,8 +6,8 @@ import shlex
 import sys
 from typing import Any
 
-from dotenv import load_dotenv
 import httpx
+from dotenv import load_dotenv
 from openai import APIError, AsyncOpenAI
 
 from a2a_client import A2AClient
