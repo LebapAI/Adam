@@ -169,9 +169,10 @@ class A2AClient:
             raise ValueError("Agent Card must expose an HTTPS url or endpoint.")
         _validate_endpoint(self.agent_card_url, endpoint)
 
+        request_id = str(uuid.uuid4())
         payload = {
             "jsonrpc": "2.0",
-            "id": str(uuid.uuid4()),
+            "id": request_id,
             "method": "tasks/send",
             "params": {
                 "id": str(uuid.uuid4()),
@@ -188,8 +189,8 @@ class A2AClient:
             )
         if not isinstance(data, dict):
             raise ValueError("A2A response was not a JSON object.")
-        if data.get("jsonrpc") != "2.0" or "id" not in data:
-            raise ValueError("A2A response did not match the expected JSON-RPC envelope.")
+        if data.get("jsonrpc") != "2.0" or data.get("id") != request_id:
+            raise ValueError("A2A response did not match the expected JSON-RPC request.")
         if "error" in data:
             # Do not include untrusted remote error content in exceptions or logs.
             raise RuntimeError("Remote A2A agent returned an error.")
