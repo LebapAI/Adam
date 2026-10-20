@@ -39,3 +39,18 @@ def test_rejects_embedded_credentials():
 def test_rejects_empty_endpoint():
     with pytest.raises(ValueError, match="valid HTTPS"):
         _validate_endpoint("https://agent.example/card", "")
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://localhost/agent-card",
+        "https://service.localhost/agent-card",
+        "https://127.0.0.1/agent-card",
+        "https://192.168.1.20/agent-card",
+        "https://169.254.169.254/latest/meta-data",
+        "https://[::1]/agent-card",
+    ],
+)
+def test_rejects_local_or_non_public_hosts(url):
+    with pytest.raises(ValueError):
+        _https_origin(url)
