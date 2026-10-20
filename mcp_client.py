@@ -69,8 +69,10 @@ class MCPToolClient:
             env=_child_environment(),
         )
         async with asyncio.timeout(DISCOVERY_TIMEOUT_SECONDS):
-            async with stdio_client(server_params) as (read_stream, write_stream):
-                async with ClientSession(read_stream, write_stream) as session:
+            async with (
+                stdio_client(server_params) as (read_stream, write_stream),
+                ClientSession(read_stream, write_stream) as session,
+            ):
                     await session.initialize()
                     result = await session.list_tools()
                     tools = result.tools
