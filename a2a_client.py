@@ -91,7 +91,7 @@ async def _check_public_dns(url: str) -> None:
             ),
             timeout=CONNECT_TIMEOUT,
         )
-    except (OSError, asyncio.TimeoutError) as exc:
+    except (OSError, TimeoutError) as exc:
         raise ValueError("A2A hostname could not be safely resolved.") from exc
     addresses = {record[4][0] for record in records}
     if not addresses:
@@ -153,10 +153,10 @@ class A2AClient:
                 client, "GET", self.agent_card_url, self._headers()
             )
         if not isinstance(card, dict):
-            raise ValueError("Agent Card response was not a JSON object.")
+            raise TypeError("Agent Card response must be a JSON object.")
         endpoint = card.get("url") or card.get("endpoint")
         if not isinstance(endpoint, str):
-            raise ValueError("Agent Card must expose an HTTPS url or endpoint.")
+            raise TypeError("Agent Card must expose an HTTPS url or endpoint.")
         _validate_endpoint(self.agent_card_url, endpoint)
         return card
 
@@ -194,7 +194,7 @@ class A2AClient:
                 client, "POST", endpoint, self._headers(), payload
             )
         if not isinstance(data, dict):
-            raise ValueError("A2A response was not a JSON object.")
+            raise TypeError("A2A response must be a JSON object.")
         if data.get("jsonrpc") != "2.0" or data.get("id") != request_id:
             raise ValueError("A2A response did not match the expected JSON-RPC request.")
         if "error" in data:
