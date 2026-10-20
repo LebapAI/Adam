@@ -109,7 +109,7 @@ class MemoryStore:
         """Search stored memories using a simple case-insensitive substring match."""
         query = self._validate_text(query, "Search query", MAX_QUERY_CHARS)
         if not isinstance(limit, int) or isinstance(limit, bool):
-            raise ValueError("Limit must be an integer.")
+            raise TypeError("Limit must be an integer.")
         limit = max(1, min(limit, MAX_RESULTS))
         escaped_query = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{escaped_query}%"
