@@ -1,9 +1,12 @@
 """Tests for the default-deny MCP tool policy."""
+
 from tool_policy import parse_tool_allowlist, tool_policy
 
 
 def test_empty_allowlist_denies_every_tool():
-    result = tool_policy({"name": "search_docs", "description": "Search documentation"}, set())
+    result = tool_policy(
+        {"name": "search_docs", "description": "Search documentation"}, set()
+    )
     assert result["allowed"] is False
     assert result["reason"] == "not explicitly allowlisted"
 
@@ -37,6 +40,7 @@ def test_allowlist_is_exact_and_strips_whitespace():
 def test_missing_name_is_denied():
     assert tool_policy({"description": "No name"}, set())["allowed"] is False
 
+
 def test_risky_underscore_name_is_denied_even_with_allowlist():
     result = tool_policy(
         {"name": "delete_file", "description": "File operation"},
@@ -44,7 +48,6 @@ def test_risky_underscore_name_is_denied_even_with_allowlist():
     )
     assert result["allowed"] is False
     assert result["reason"] == "potentially sensitive capability"
-
 
 
 def test_non_string_tool_name_is_denied_without_crashing():
@@ -63,7 +66,10 @@ def test_non_string_allowlist_setting_fails_closed():
     assert parse_tool_allowlist(None) == set()
 
 
-def test_non_string_description_does_not_crash_or_grant_access():
-    result = tool_policy({"name": "search_docs", "description": {"unexpected": "data"}}, {"search_docs"})
+def test_non_string_description_is_handled_without_crashing():
+    result = tool_policy(
+        {"name": "search_docs", "description": {"unexpected": "data"}},
+        {"search_docs"},
+    )
     assert result["allowed"] is True
     assert "execution is not implemented" in str(result["reason"])
