@@ -182,8 +182,9 @@ async def main() -> None:
         elif line.lower() == "mcp-tools":
             if not confirm_sensitive_action(
                 "start_mcp_server",
-                "This starts the local MCP server command configured in .env. "
-                "Only approve if you trust that command.",
+                "This starts a local MCP server for tool discovery only.",
+                "local stdio subprocess",
+                os.getenv("MCP_SERVER_COMMAND", ""),
             ):
                 continue
             try:
