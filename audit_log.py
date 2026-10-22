@@ -18,7 +18,7 @@ _ALLOWED_ACTIONS = {
     "external_a2a_request",
     "mcp_tool_discovery",
 }
-_ALLOWED_OUTCOMES = {"success", "failure", "cancelled", "denied"}
+_ALLOWED_OUTCOMES = {"success", "failure", "cancelled", "denied", "approved"}
 _ALLOWED_REASONS = {
     "authenticated",
     "invalid_password",
