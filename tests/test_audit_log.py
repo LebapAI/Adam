@@ -45,3 +45,14 @@ def test_missing_parent_directory_fails_closed(tmp_path, monkeypatch):
 
     with pytest.raises(AuditLogError):
         write_audit_event("owner_auth", "success", "authenticated")
+
+def test_records_approval_without_claiming_operation_succeeded(tmp_path, monkeypatch):
+    path = tmp_path / "audit.jsonl"
+    monkeypatch.setenv("ADAM_AUDIT_LOG", str(path))
+
+    write_audit_event("external_llm_request", "approved", "owner_approved")
+
+    event = json.loads(path.read_text(encoding="utf-8"))
+    assert event["outcome"] == "approved"
+    assert event["reason"] == "owner_approved"
+
