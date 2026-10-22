@@ -153,7 +153,7 @@ def confirm_sensitive_action(
         return False
     if audit_action:
         try:
-            write_audit_event(audit_action, "success", "owner_approved")
+            write_audit_event(audit_action, "approved", "owner_approved")
         except AuditLogError:
             print("Audit log unavailable; refusing to start the operation.")
             return False
