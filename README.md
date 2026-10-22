@@ -20,11 +20,11 @@ This repository is an early starter scaffold. External integrations may require 
 ## Quick start
 1. Install Python 3.11 or newer.
 2. Create a virtual environment where supported.
-3. Install dependencies: `python -m pip install -r requirements.txt`.
+3. Install core dependencies: `python -m pip install -r requirements.txt`.
 4. Copy `.env.example` to `.env` and set a unique `ADAM_OWNER_PASSWORD` of at least 16 characters.
 5. Run: `python main.py`.
 
-The LLM integration uses `httpx` to call an OpenAI-compatible chat completions endpoint directly; the OpenAI Python SDK is not required. Configure `LLM_API_KEY` and `LLM_MODEL` in `.env` to enable it. The `mcp` package is currently listed as a project dependency; installation may fail on some Android/32-bit ARM Termux environments if a transitive dependency does not support the device architecture.
+The LLM integration uses `httpx` to call an OpenAI-compatible chat completions endpoint directly; the OpenAI Python SDK is not required. Configure `LLM_API_KEY` and `LLM_MODEL` in `.env` to enable it. MCP is an optional integration. To enable MCP tool discovery, install its dependencies with `python -m pip install -r requirements-mcp.txt`. Keeping MCP out of the core install helps the local CLI and memory work on constrained platforms where MCP dependencies may not be available.
 
 ## Commands
 - `status` — show configured integrations.
@@ -33,7 +33,7 @@ The LLM integration uses `httpx` to call an OpenAI-compatible chat completions e
 - `forget: ID` — delete one local memory by its numeric ID.
 - `recall: search text` — search local memories.
 - `ask: your question` — after explicit confirmation, send a question to the configured LLM API using `httpx`, if configured.
-- `mcp-tools` — after explicit confirmation, start the configured local MCP server and list discovered tools with a default-deny review policy.
+- `mcp-tools` — after explicit confirmation, start the configured local MCP server and list discovered tools with a default-deny review policy. Install `requirements-mcp.txt` first.
 - `a2a: your task` — after explicit confirmation, send a task to a configured A2A agent.
 - `exit` — quit.
 
@@ -52,7 +52,7 @@ python -m pytest -q
 ruff check .
 ```
 
-GitHub Actions runs these checks on pushes and pull requests to `main` or `master`.
+Development dependencies include MCP so its security tests run in CI. GitHub Actions runs these checks on pushes and pull requests to `main` or `master`.
 
 ## Security
 - Never commit `.env`, API keys, passwords, or private keys.
@@ -74,7 +74,7 @@ GitHub Actions runs these checks on pushes and pull requests to `main` or `maste
 
 ## Integrations
 - **API:** OpenAI-compatible chat completions endpoint called through `httpx`; no provider SDK is required for this path.
-- **MCP:** local stdio MCP server using the official Python SDK.
+- **MCP:** optional local stdio MCP server using the official Python SDK. Install `requirements-mcp.txt` to enable it.
 - **A2A:** a basic adapter for an agent that publishes a compatible Agent Card and task endpoint. The current adapter requires HTTPS and the task endpoint to share the Agent Card's origin to reduce credential leakage risk. A2A implementations vary; check the remote agent's documentation.
 
 ## License
