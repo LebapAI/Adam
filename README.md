@@ -20,11 +20,11 @@ This repository is an early starter scaffold. External integrations may require 
 ## Quick start
 1. Install Python 3.11 or newer.
 2. Create a virtual environment where supported.
-3. Install core dependencies: `pip install -r requirements.txt`.
+3. Install dependencies: `python -m pip install -r requirements.txt`.
 4. Copy `.env.example` to `.env` and set a unique `ADAM_OWNER_PASSWORD` of at least 16 characters.
 5. Run: `python main.py`.
 
-The OpenAI-compatible LLM SDK is optional so local memory and core commands can run on constrained platforms. To enable an external LLM, install `openai>=1.40,<3` on a platform supported by that package, then configure `LLM_API_KEY` and `LLM_MODEL` in `.env`. On some Android/32-bit ARM Termux environments, the `jiter` dependency may not support the device architecture.
+The LLM integration uses `httpx` to call an OpenAI-compatible chat completions endpoint directly; the OpenAI Python SDK is not required. Configure `LLM_API_KEY` and `LLM_MODEL` in `.env` to enable it. The `mcp` package is currently listed as a project dependency; installation may fail on some Android/32-bit ARM Termux environments if a transitive dependency does not support the device architecture.
 
 ## Commands
 - `status` — show configured integrations.
@@ -32,7 +32,7 @@ The OpenAI-compatible LLM SDK is optional so local memory and core commands can 
 - `memories` — list recent locally saved memories.
 - `forget: ID` — delete one local memory by its numeric ID.
 - `recall: search text` — search local memories.
-- `ask: your question` — after explicit confirmation, send a question to the configured LLM API, if its optional SDK is installed.
+- `ask: your question` — after explicit confirmation, send a question to the configured LLM API using `httpx`, if configured.
 - `mcp-tools` — after explicit confirmation, start the configured local MCP server and list discovered tools with a default-deny review policy.
 - `a2a: your task` — after explicit confirmation, send a task to a configured A2A agent.
 - `exit` — quit.
@@ -46,7 +46,7 @@ The OpenAI-compatible LLM SDK is optional so local memory and core commands can 
 Install development dependencies and run the checks:
 
 ```bash
-pip install -r requirements-dev.txt
+python -m pip install -r requirements-dev.txt
 python -m compileall -q .
 python -m pytest -q
 ruff check .
@@ -73,7 +73,7 @@ GitHub Actions runs these checks on pushes and pull requests to `main` or `maste
 - Secret filtering is best-effort only; never send secrets to remote agents or rely on redaction as a security boundary.
 
 ## Integrations
-- **API:** Optional OpenAI-compatible chat completions endpoint.
+- **API:** OpenAI-compatible chat completions endpoint called through `httpx`; no provider SDK is required for this path.
 - **MCP:** local stdio MCP server using the official Python SDK.
 - **A2A:** a basic adapter for an agent that publishes a compatible Agent Card and task endpoint. The current adapter requires HTTPS and the task endpoint to share the Agent Card's origin to reduce credential leakage risk. A2A implementations vary; check the remote agent's documentation.
 
