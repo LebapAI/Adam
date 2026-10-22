@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from a2a_client import A2AClient
 from audit_log import AuditLogError, write_audit_event
 from authorization import confirmation_granted, confirmation_phrase
+
 try:
     from mcp_client import MCPToolClient
     _MCP_AVAILABLE = True
@@ -83,7 +84,7 @@ class AdamAgent:
         except (KeyError, IndexError, TypeError) as exc:
             raise ValueError("Unexpected chat completion response format") from exc
         if not isinstance(content, str):
-            raise ValueError("Unexpected chat completion content type")
+            raise TypeError("Unexpected chat completion content type")
         return screen_remote_text(content)
 
     async def status(self) -> dict[str, Any]:
