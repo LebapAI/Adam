@@ -6,6 +6,7 @@ Adam is a personal AI agent integration project designed to coordinate with exte
 - Connect to configured AI APIs.
 - Discover and use trusted MCP tools.
 - Exchange tasks with compatible A2A agents.
+- Receive Agentverse / ASI:One chat messages through the Agent Chat Protocol (ACP).
 - Keep credentials outside source control.
 - Treat remote agent output as untrusted data.
 - Require human approval before consequential actions.
@@ -72,7 +73,19 @@ Development dependencies include MCP so its security tests run in CI. GitHub Act
 - A successful network connection does not prove a remote agent is trustworthy.
 - Secret filtering is best-effort only; never send secrets to remote agents or rely on redaction as a security boundary.
 
+## Agentverse / ASI:One
+
+The Railway web process can also run Adam's mailbox-enabled Agent Chat Protocol adapter. It uses the existing `AdamAgent.ask_model()` path and does not execute MCP tools, A2A tasks, shell commands, or other consequential actions from incoming chat messages.
+
+1. Set `AGENT_SEED_PHRASE` as a secret in the hosting provider. Use the same stable seed phrase for this Adam identity; never commit it or send it in chat.
+2. Deploy the latest `main` branch. The web UI remains available when the seed is not configured, but Agentverse chat will stay disabled.
+3. Complete the Agentverse registration flow for this running uAgent and verify it in Agentverse while the Railway service is online. Use the official Agentverse uAgents onboarding instructions: https://docs.agentverse.ai/documentation/launch-agents/agentverse-sdk/u-agents
+4. Keep the service running. If the seed is changed, the agent identity changes too and registration may no longer match.
+
+The Agentverse adapter is not considered verified until the deployment logs show the agent started and an actual Agentverse test message receives a reply.
+
 ## Integrations
+- **Agentverse / ACP:** mailbox-enabled uAgents adapter; optional at runtime until `AGENT_SEED_PHRASE` is configured.
 - **API:** OpenAI-compatible chat completions endpoint called through `httpx`; no provider SDK is required for this path.
 - **MCP:** optional local stdio MCP server using the official Python SDK. Install `requirements-mcp.txt` to enable it.
 - **A2A:** a basic adapter for an agent that publishes a compatible Agent Card and task endpoint. The current adapter requires HTTPS and the task endpoint to share the Agent Card's origin to reduce credential leakage risk. A2A implementations vary; check the remote agent's documentation.
