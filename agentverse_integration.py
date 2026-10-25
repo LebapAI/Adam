@@ -51,6 +51,7 @@ def build_agent(adam: AdamAgent | None = None) -> Agent:
     agent = Agent(
         name="Adam",
         seed=seed,
+        port=int(os.getenv("AGENT_PORT", "8001")),
         mailbox=True,
     )
     chat = Protocol(spec=chat_protocol_spec)
