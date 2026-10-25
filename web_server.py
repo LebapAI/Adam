@@ -1,77 +1,110 @@
+"""Dependency-light owner-authenticated web interface for Railway."""
+import asyncio
+import base64
 import hmac
+import json
 import os
-from typing import Annotated
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
 import httpx
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from pydantic import BaseModel, Field
 from audit_log import AuditLogError, write_audit_event
 from authorization import confirmation_granted
 from main import AdamAgent
 from owner_auth import verify_owner_password
 from safety import screen_remote_text
 
-app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-auth = HTTPBasic(auto_error=False)
 adam = AdamAgent()
+PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Adam AI</title><h1>Adam AI</h1><p>Never send passwords or API keys.</p><p id=s>Loading status…</p><textarea id=q maxlength=12000 placeholder='Your question' style='width:100%;height:140px'></textarea><p>Type SEND to approve sending this question to the external model.</p><input id=c placeholder=SEND><button id=b>Send</button><p id=m></p><pre id=a style='white-space:pre-wrap'></pre><script>const s=document.getElementById('s'),m=document.getElementById('m'),a=document.getElementById('a');fetch('/api/status').then(r=>r.json()).then(x=>s.textContent='LLM '+(x.llm_configured?'configured':'not configured')+'; MCP tools disabled');document.getElementById('b').onclick=async()=>{a.textContent='';if(document.getElementById('c').value!=='SEND'){m.textContent='Type SEND exactly.';return}m.textContent='Sending…';try{let r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:document.getElementById('q').value,confirmation:document.getElementById('c').value})}),d=await r.json();if(!r.ok)throw Error(d.detail||'Request failed');a.textContent=d.answer;m.textContent='Response received.'}catch(e){m.textContent=e.message}}</script>"""
 
-def owner(c: Annotated[HTTPBasicCredentials | None, Depends(auth)]):
-    p = os.getenv("ADAM_OWNER_PASSWORD", "")
-    ok = c is not None and hmac.compare_digest(c.username.encode(), b"owner") and verify_owner_password(p, c.password)
-    if len(p) < 16 or not ok:
-        raise HTTPException(401, "Owner authentication required", headers={"WWW-Authenticate": 'Basic realm="Adam AI"'})
-    return c.username
+class Handler(BaseHTTPRequestHandler):
+    def send_json(self, code, data):
+        raw = json.dumps(data).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.end_headers()
+        self.wfile.write(raw)
 
-class Ask(BaseModel):
-    prompt: str = Field(min_length=1, max_length=12000)
-    confirmation: str = Field(min_length=1, max_length=16)
-
-@app.get("/healthz")
-async def healthz():
-    return {"status": "ok"}
-
-@app.get("/api/status")
-async def get_status(_: Annotated[str, Depends(owner)]):
-    s = await adam.status()
-    return {"agent": s["agent"], "llm_configured": s["llm_configured"], "mcp_tool_execution_enabled": False}
-
-@app.post("/api/ask")
-async def ask(body: Ask, _: Annotated[str, Depends(owner)]):
-    prompt = body.prompt.strip()
-    if not prompt or screen_remote_text(prompt) != prompt:
-        raise HTTPException(400, "Empty question or text resembles a secret.")
-    if not confirmation_granted("send_to_llm", body.confirmation):
-        raise HTTPException(400, "Type SEND exactly to approve.")
-    if not adam.llm_configured:
-        raise HTTPException(503, "Set LLM_API_KEY and LLM_MODEL in Railway Variables.")
-    try:
-        write_audit_event("external_llm_request", "approved", "owner_approved")
-    except (AuditLogError, OSError, ValueError):
-        raise HTTPException(503, "Audit log unavailable; request was not sent.") from None
-    try:
-        answer = await adam.ask_model(prompt)
-    except (httpx.HTTPError, OSError, ValueError, RuntimeError, TimeoutError):
+    def authorized(self):
+        expected = os.getenv("ADAM_OWNER_PASSWORD", "")
         try:
-            write_audit_event("external_llm_request", "failure", "request_error")
+            scheme, token = self.headers.get("Authorization", "").split(" ", 1)
+            user, password = base64.b64decode(token, validate=True).decode().split(":", 1)
+        except (ValueError, UnicodeError):
+            user, password, scheme = "", "", ""
+        valid = (scheme.lower() == "basic" and hmac.compare_digest(user.encode(), b"owner")
+                 and verify_owner_password(expected, password) and len(expected) >= 16)
+        if not valid:
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="Adam AI"')
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+        return valid
+
+    def do_GET(self):
+        if self.path == "/healthz":
+            return self.send_json(200, {"status": "ok"})
+        if not self.authorized():
+            return
+        if self.path == "/":
+            raw = PAGE.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
+            self.end_headers()
+            self.wfile.write(raw)
+        elif self.path == "/api/status":
+            return self.send_json(200, {"agent": "Adam", "llm_configured": adam.llm_configured,
+                                        "mcp_tool_execution_enabled": False})
+        else:
+            return self.send_json(404, {"detail": "Not found"})
+
+    def do_POST(self):
+        if not self.authorized():
+            return
+        if self.path != "/api/ask":
+            return self.send_json(404, {"detail": "Not found"})
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if length < 1 or length > 15000:
+                return self.send_json(413, {"detail": "Request too large"})
+            body = json.loads(self.rfile.read(length))
+            prompt = body.get("prompt", "").strip()
+            confirmation = body.get("confirmation", "")
+        except (ValueError, TypeError, AttributeError):
+            return self.send_json(400, {"detail": "Invalid request"})
+        if not prompt or len(prompt) > 12000 or screen_remote_text(prompt) != prompt:
+            return self.send_json(400, {"detail": "Empty question, too long, or text resembles a secret"})
+        if not confirmation_granted("send_to_llm", confirmation):
+            return self.send_json(400, {"detail": "Type SEND exactly to approve"})
+        if not adam.llm_configured:
+            return self.send_json(503, {"detail": "Set LLM_API_KEY and LLM_MODEL in Railway Variables"})
+        try:
+            write_audit_event("external_llm_request", "approved", "owner_approved")
+        except (AuditLogError, OSError, ValueError):
+            return self.send_json(503, {"detail": "Audit log unavailable; request was not sent"})
+        try:
+            answer = asyncio.run(adam.ask_model(prompt))
+        except (httpx.HTTPError, OSError, ValueError, RuntimeError, TimeoutError):
+            try:
+                write_audit_event("external_llm_request", "failure", "request_error")
+            except (AuditLogError, OSError, ValueError):
+                pass
+            return self.send_json(502, {"detail": "Model request failed; check API settings and network"})
+        try:
+            write_audit_event("external_llm_request", "success", "request_completed")
         except (AuditLogError, OSError, ValueError):
             pass
-        raise HTTPException(502, "Model request failed; check API settings and network.") from None
-    try:
-        write_audit_event("external_llm_request", "success", "request_completed")
-    except (AuditLogError, OSError, ValueError):
-        pass
-    return {"answer": answer}
+        return self.send_json(200, {"answer": answer})
 
-@app.get("/", response_class=HTMLResponse)
-async def home(_: Annotated[str, Depends(owner)]):
-    return HTMLResponse("<!doctype html><html><meta charset=utf-8><title>Adam AI</title><body><h1>Adam AI</h1><p>Owner authentication succeeded. API status: <a href='/api/status'>/api/status</a></p><p>Send POST /api/ask with JSON fields prompt and confirmation='SEND'. Never send secrets.</p></body></html>")
-
-@app.middleware("http")
-async def secure_headers(request, call_next):
-    r = await call_next(request)
-    r.headers["X-Content-Type-Options"] = "nosniff"
-    r.headers["X-Frame-Options"] = "DENY"
-    r.headers["Referrer-Policy"] = "no-referrer"
-    r.headers["Cache-Control"] = "no-store"
-    return r
+if __name__ == "__main__":
+    if len(os.getenv("ADAM_OWNER_PASSWORD", "")) < 16:
+        raise SystemExit("ADAM_OWNER_PASSWORD must be at least 16 characters.")
+    port = int(os.getenv("PORT", "8000"))
+    ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
