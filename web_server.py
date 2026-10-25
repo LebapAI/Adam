@@ -4,6 +4,8 @@ import base64
 import hmac
 import json
 import os
+import logging
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import httpx
@@ -14,6 +16,7 @@ from owner_auth import verify_owner_password
 from safety import screen_remote_text
 
 adam = AdamAgent()
+LOGGER = logging.getLogger("adam.web")
 PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Adam AI</title><h1>Adam AI</h1><p>Never send passwords or API keys.</p><p id=s>Loading status…</p><textarea id=q maxlength=12000 placeholder='Your question' style='width:100%;height:140px'></textarea><p>Type SEND to approve sending this question to the external model.</p><input id=c placeholder=SEND><button id=b>Send</button><p id=m></p><pre id=a style='white-space:pre-wrap'></pre><script>const s=document.getElementById('s'),m=document.getElementById('m'),a=document.getElementById('a');fetch('/api/status').then(r=>r.json()).then(x=>s.textContent='LLM '+(x.llm_configured?'configured':'not configured')+'; MCP tools disabled');document.getElementById('b').onclick=async()=>{a.textContent='';if(document.getElementById('c').value!=='SEND'){m.textContent='Type SEND exactly.';return}m.textContent='Sending…';try{let r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:document.getElementById('q').value,confirmation:document.getElementById('c').value})}),d=await r.json();if(!r.ok)throw Error(d.detail||'Request failed');a.textContent=d.answer;m.textContent='Response received.'}catch(e){m.textContent=e.message}}</script>"""
 
 class Handler(BaseHTTPRequestHandler):
@@ -103,7 +106,32 @@ class Handler(BaseHTTPRequestHandler):
             pass
         return self.send_json(200, {"answer": answer})
 
+def start_agentverse_integration() -> None:
+    """Start ACP integration without preventing the owner web UI from starting."""
+    if not os.getenv("AGENT_SEED_PHRASE", "").strip():
+        LOGGER.warning(
+            "Agentverse chat is disabled: AGENT_SEED_PHRASE is not configured."
+        )
+        return
+
+    def runner() -> None:
+        try:
+            from agentverse_integration import run_agentverse_agent
+            run_agentverse_agent()
+        except Exception:
+            LOGGER.exception("Agentverse integration stopped during startup.")
+
+    thread = threading.Thread(
+        target=runner,
+        name="adam-agentverse",
+        daemon=True,
+    )
+    thread.start()
+
+
 if __name__ == "__main__":
+    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+    start_agentverse_integration()
     # Keep the service alive even if credentials need configuration; protected routes
     # reject authentication until a valid owner password (16+ characters) is set.
     port = int(os.getenv("PORT", "8000"))
