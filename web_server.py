@@ -7,6 +7,7 @@ import os
 import logging
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit
 
 import httpx
 from audit_log import AuditLogError, write_audit_event
@@ -17,7 +18,7 @@ from safety import screen_remote_text
 
 adam = AdamAgent()
 LOGGER = logging.getLogger("adam.web")
-PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Adam AI</title><h1>Adam AI</h1><p>Never send passwords or API keys.</p><p id=s>Loading status…</p><textarea id=q maxlength=12000 placeholder='Your question' style='width:100%;height:140px'></textarea><p>Type SEND to approve sending this question to the external model.</p><input id=c placeholder=SEND><button id=b>Send</button><p id=m></p><pre id=a style='white-space:pre-wrap'></pre><script>const s=document.getElementById('s'),m=document.getElementById('m'),a=document.getElementById('a');fetch('/api/status').then(r=>r.json()).then(x=>s.textContent='LLM '+(x.llm_configured?'configured':'not configured')+'; MCP tools disabled');document.getElementById('b').onclick=async()=>{a.textContent='';if(document.getElementById('c').value!=='SEND'){m.textContent='Type SEND exactly.';return}m.textContent='Sending…';try{let r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:document.getElementById('q').value,confirmation:document.getElementById('c').value})}),d=await r.json();if(!r.ok)throw Error(d.detail||'Request failed');a.textContent=d.answer;m.textContent='Response received.'}catch(e){m.textContent=e.message}}</script>"""
+PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Adam AI</title><h1>Adam AI</h1><p>Never send passwords or API keys.</p><p id=s>Loading status…</p><textarea id=q maxlength=12000 placeholder='Your question' style='width:100%;height:140px'></textarea><p>Type SEND to approve sending this question to the external model.</p><input id=c placeholder=SEND><button id=b>Send</button><p id=m></p><pre id=a style='white-space:pre-wrap'></pre><script>const s=document.getElementById('s'),m=document.getElementById('m'),a=document.getElementById('a');fetch('/api/status').then(r=>r.json()).then(x=>s.textContent='LLM '+(x.llm_configured?'configured':'not configured')+'; Agentverse '+(x.agentverse_configured?'configured':'disabled')+'; MCP tools disabled').catch(()=>s.textContent='Status unavailable');document.getElementById('b').onclick=async()=>{a.textContent='';if(document.getElementById('c').value!=='SEND'){m.textContent='Type SEND exactly.';return}m.textContent='Sending…';try{let r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:document.getElementById('q').value,confirmation:document.getElementById('c').value})}),d=await r.json();if(!r.ok)throw Error(d.detail||'Request failed');a.textContent=d.answer;m.textContent='Response received.'}catch(e){m.textContent=e.message}}</script>"""
 
 class Handler(BaseHTTPRequestHandler):
     def send_json(self, code, data):
@@ -48,11 +49,12 @@ class Handler(BaseHTTPRequestHandler):
         return valid
 
     def do_GET(self):
-        if self.path == "/healthz":
+        path = urlsplit(self.path).path
+        if path == "/healthz":
             return self.send_json(200, {"status": "ok"})
         if not self.authorized():
             return
-        if self.path == "/":
+        if path == "/":
             raw = PAGE.encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -62,16 +64,25 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("X-Frame-Options", "DENY")
             self.end_headers()
             self.wfile.write(raw)
-        elif self.path == "/api/status":
-            return self.send_json(200, {"agent": "Adam", "llm_configured": adam.llm_configured,
-                                        "mcp_tool_execution_enabled": False})
+        elif path == "/api/status":
+            return self.send_json(200, {
+                "agent": "Adam",
+                "llm_configured": adam.llm_configured,
+                "agentverse_configured": bool(os.getenv("AGENT_SEED_PHRASE", "").strip()),
+                "mcp_tool_execution_enabled": False,
+            })
+        elif path == "/favicon.ico":
+            self.send_response(204)
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
         else:
             return self.send_json(404, {"detail": "Not found"})
 
     def do_POST(self):
+        path = urlsplit(self.path).path
         if not self.authorized():
             return
-        if self.path != "/api/ask":
+        if path != "/api/ask":
             return self.send_json(404, {"detail": "Not found"})
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -109,9 +120,7 @@ class Handler(BaseHTTPRequestHandler):
 def start_agentverse_integration() -> None:
     """Start ACP integration without preventing the owner web UI from starting."""
     if not os.getenv("AGENT_SEED_PHRASE", "").strip():
-        LOGGER.warning(
-            "Agentverse chat is disabled: AGENT_SEED_PHRASE is not configured."
-        )
+        LOGGER.warning("Agentverse chat is disabled: AGENT_SEED_PHRASE is not configured.")
         return
 
     def runner() -> None:
@@ -121,12 +130,7 @@ def start_agentverse_integration() -> None:
         except Exception:
             LOGGER.exception("Agentverse integration stopped during startup.")
 
-    thread = threading.Thread(
-        target=runner,
-        name="adam-agentverse",
-        daemon=True,
-    )
-    thread.start()
+    threading.Thread(target=runner, name="adam-agentverse", daemon=True).start()
 
 
 if __name__ == "__main__":
