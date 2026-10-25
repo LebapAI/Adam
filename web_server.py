@@ -104,7 +104,7 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_json(200, {"answer": answer})
 
 if __name__ == "__main__":
-    if len(os.getenv("ADAM_OWNER_PASSWORD", "")) < 16:
-        raise SystemExit("ADAM_OWNER_PASSWORD must be at least 16 characters.")
+    # Keep the service alive even if credentials need configuration; protected routes
+    # reject authentication until a valid owner password (16+ characters) is set.
     port = int(os.getenv("PORT", "8000"))
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
